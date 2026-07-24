@@ -1,0 +1,25 @@
+{
+  "name": "my-rota-sync",
+  "version": "1.0.0",
+  "description": "Reads a shared Google Drive rota, extracts one person's shifts, stores them in a database, and serves a clean personal view. Auto-syncs on a schedule.",
+  "type": "module",
+  "scripts": {
+    "auth": "node scripts/auth.js",
+    "sync": "node scripts/sync-once.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0",
+    "node-cron": "^3.0.3",
+    "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true
+  }
+}

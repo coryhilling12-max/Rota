@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Rota</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            sage: {
+              50: '#F4F7F1', 100: '#E6EDDF', 200: '#CFDBC2', 300: '#B3C79F',
+              400: '#93AF7C', 500: '#79995F', 600: '#62804A', 700: '#4F6A3B',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; }
+    .bg-app { background: linear-gradient(180deg, #F0F4EC 0%, #F6F8F3 12%, #fafaf9 32%); }
+  </style>
+</head>
+<body class="bg-app min-h-screen">
+  <div class="max-w-6xl mx-auto px-4 pt-4 pb-1">
+    <img src="/logo.webp" alt="Vets for Pets" class="h-6 w-auto" />
+  </div>
+  <div id="hero" class="bg-sage-600 text-white px-4 pt-4 pb-12 sm:rounded-b-3xl"></div>
+
+  <div class="max-w-6xl mx-auto px-4 -mt-6">
+    <div id="nextShiftCard" class="mb-6"></div>
+
+    <div id="masterDetails" class="mb-6"></div>
+
+    <div id="payCards" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-8"></div>
+
+    <div id="weeks" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+
+    <div class="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-stone-500">
+      <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-indigo-300 inline-block"></span> Night</span>
+      <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-amber-300 inline-block"></span> Day</span>
+      <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-emerald-300 inline-block"></span> Holiday</span>
+      <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-slate-200 inline-block"></span> Off</span>
+      <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-stone-300 inline-block"></span> College / note</span>
+      <span class="text-stone-400">·&nbsp; "12.3" = 12.3-hour night shift</span>
+    </div>
+  </div>
+
+<script>
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const ROLE_NAMES = { HVCA:"Night VCA", NVCA:"Night VCA", SVN:"Student nurse", RVN:"Nurse", VCA:"VCA" };
+function roleLabel(r){ return r ? (ROLE_NAMES[r.toUpperCase()] || r) : ""; }
+const CHIP = {
+  day:   "bg-amber-50 text-amber-900 border-amber-200",
+  night: "bg-indigo-50 text-indigo-900 border-indigo-200",
+  hol:   "bg-emerald-50 text-emerald-800 border-emerald-200",
+  note:  "bg-stone-100 text-stone-500 border-stone-200",
+};
+
+// Small inline icon set (stroke-based, currentColor) — no external requests needed.
+const ICONS = {
+  refresh:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
+  sun:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`,
+  moon:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`,
+  suitcase: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>`,
+  book:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>`,
+  badge:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>`,
+  repeat:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
+  calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`,
+  clock:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>`,
+  banknote: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 10v.01M18 14v.01"/></svg>`,
+  receipt:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2Z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>`,
+  wallet:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h3v-4Z"/></svg>`,
+};
+const KIND_ICON = { day: ICONS.sun, night: ICONS.moon, hol: ICONS.suitcase, note: ICONS.book };
+
+const todayISO = new Date().toLocaleDateString("en-CA"); // yyyy-mm-dd local
+function fmt(iso){ const [y,m,d]=iso.split("-").map(Number); return new Date(y,m-1,d); }
+function range(a){ const s=fmt(a), e=fmt(a); e.setDate(e.getDate()+6);
+  const mo=x=>x.toLocaleDateString("en-GB",{month:"short"});
+  return `${s.getDate()} ${mo(s)} – ${e.getDate()} ${mo(e)}`; }
+
+function weekCard(w){
+  const end = fmt(w.weekStart); end.setDate(end.getDate()+6);
+  const isCurrent = todayISO >= w.weekStart && todayISO <= end.toLocaleDateString("en-CA");
+  const cells = w.days.map(d=>{
+    const isToday = d.date === todayISO;
+    const dayNum = fmt(d.date).getDate();
+    const idx = w.days.indexOf(d);
+    if (d.kind === "off"){
+      return `<div class="bg-white px-2 pt-2 pb-3 min-h-[92px] flex flex-col ${isToday?'bg-sage-50/60':''}">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] font-semibold uppercase text-stone-400">${DAYS[idx]}</span>
+          <span class="text-xs w-5 h-5 flex items-center justify-center rounded-full ${isToday?'bg-stone-900 text-white font-semibold':'text-stone-500'}">${dayNum}</span>
+        </div><div class="flex-1 flex items-center"><span class="text-[11px] text-stone-300">off</span></div></div>`;
+    }
+    return `<div class="bg-white px-2 pt-2 pb-3 min-h-[92px] flex flex-col ${isToday?'bg-sage-50/60':''}">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-[10px] font-semibold uppercase text-stone-400">${DAYS[idx]}</span>
+        <span class="text-xs w-5 h-5 flex items-center justify-center rounded-full ${isToday?'bg-stone-900 text-white font-semibold':'text-stone-500'}">${dayNum}</span>
+      </div>
+      <div class="flex-1 rounded-lg border px-1.5 py-1.5 text-[11px] leading-tight font-medium ${CHIP[d.kind]}">${d.label}</div></div>`;
+  }).join("");
+
+  return `<div class="rounded-2xl border bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-md ${isCurrent?'border-sage-300 ring-1 ring-sage-300':'border-stone-200'}">
+    <div class="flex items-center justify-between px-5 py-3.5">
+      <div class="flex items-center gap-3">
+        ${isCurrent?'<span class="text-[10px] font-semibold uppercase tracking-wide bg-sage-600 text-white px-2 py-0.5 rounded-full">This week</span>':''}
+        <div><div class="font-semibold text-stone-900">${range(w.weekStart)}</div>
+        <div class="text-xs text-stone-400">${[w.cycle, roleLabel(w.role)].filter(Boolean).join(" · ")}</div></div>
+      </div>
+      <div class="text-right">
+        <div class="text-sm font-medium text-stone-700">${w.worked>0?w.worked+'h':'—'}</div>
+        ${w.leave>0?`<div class="text-[11px] text-emerald-600">${w.leave}h leave</div>`:''}
+      </div>
+    </div>
+    <div class="grid grid-cols-7 gap-px bg-stone-100 border-t border-stone-100">${cells}</div>
+  </div>`;
+}
+
+// ---- pay ----
+const HOURLY_RATE = 13.50;
+const CONTRACT_HOURS_PER_WEEK = 40;
+const CONTRACT_HOURS_PER_PERIOD = CONTRACT_HOURS_PER_WEEK * 4; // every pay period is exactly 4 weeks
+
+// Last payday was 17 Jul 2026, cutoff a week before that (10 Jul). Pay runs every 28 days from there,
+// each new period starting the day after the previous cutoff.
+const ANCHOR_CUTOFF = new Date(2026, 6, 10);
+function addDays(d,n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function blockIndexFor(date){
+  const diffDays = Math.round((date - ANCHOR_CUTOFF) / 86400000);
+  return Math.max(1, Math.ceil(diffDays / 28));
+}
+function payPeriod(blockIndex){
+  const end = addDays(ANCHOR_CUTOFF, 28*blockIndex);
+  const start = addDays(end, -27);
+  const payday = addDays(end, 7);
+  return { start, end, payday };
+}
+
+// Rough UK PAYE estimate: standard 1257L tax code, no student loan, paid every 4 weeks (13 periods/year).
+function ukPeriodTaxAndNI(grossPeriod){
+  const PA = 12570/13, BASIC_TOP = 50270/13, HIGHER_TOP = 125140/13;
+  let tax = 0;
+  if (grossPeriod > PA) tax += (Math.min(grossPeriod, BASIC_TOP) - PA) * 0.20;
+  if (grossPeriod > BASIC_TOP) tax += (Math.min(grossPeriod, HIGHER_TOP) - BASIC_TOP) * 0.40;
+  if (grossPeriod > HIGHER_TOP) tax += (grossPeriod - HIGHER_TOP) * 0.45;
+  const NI_PT = 242*4, NI_UEL = 967*4; // weekly thresholds x4 weeks
+  let ni = 0;
+  if (grossPeriod > NI_PT) ni += (Math.min(grossPeriod, NI_UEL) - NI_PT) * 0.08;
+  if (grossPeriod > NI_UEL) ni += (grossPeriod - NI_UEL) * 0.02;
+  return { tax, ni, net: grossPeriod - tax - ni };
+}
+
+// Days with no rota entry at all yet (not even "off") get an estimate at the
+// contracted daily rate, so a pay period isn't understated just because next
+// month's rota hasn't been published.
+function payBracketCard(start, end, payday, allDays, knownDates, isCurrent){
+  const startISO = start.toLocaleDateString("en-CA"), endISO = end.toLocaleDateString("en-CA");
+  let workedHours = 0, leaveHours = 0;
+  for (const d of allDays){
+    if (d.date < startISO || d.date > endISO) continue;
+    if (d.kind === "day" || d.kind === "night" || d.kind === "note") workedHours += d.hours; // "note" covers paid college days
+    else if (d.kind === "hol") leaveHours += d.hours;
+  }
+
+  let missingDays = 0;
+  for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate()+1)){
+    if (!knownDates.has(cursor.toLocaleDateString("en-CA"))) missingDays++;
+  }
+  const estimatedHours = Math.round(missingDays * (CONTRACT_HOURS_PER_WEEK/7) * 100) / 100;
+
+  const totalHours = workedHours + leaveHours + estimatedHours;
+  const gross = totalHours * HOURLY_RATE;
+  const { tax, ni, net } = ukPeriodTaxAndNI(gross);
+  const mo = x => x.toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+  const money = x => `£${x.toFixed(2)}`;
+
+  return `<div class="rounded-2xl border bg-white shadow-sm px-5 py-4 transition-shadow hover:shadow-md ${isCurrent?'border-sage-300 ring-1 ring-sage-300':'border-stone-200'}">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        ${isCurrent?'<span class="text-[10px] font-semibold uppercase tracking-wide bg-sage-600 text-white px-2 py-0.5 rounded-full">Current</span>':'<span class="text-[10px] font-semibold uppercase tracking-wide bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">Upcoming</span>'}
+        <div class="text-sm font-semibold text-stone-900">${mo(start)} – ${mo(end)}</div>
+      </div>
+      <div class="text-xs text-stone-400">Paid ${mo(payday)}</div>
+    </div>
+    <div class="grid grid-cols-2 gap-3 text-center">
+      <div><div class="text-lg font-bold text-stone-900">${totalHours.toFixed(1)}h</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.clock}</span>Total hours${leaveHours>0?` (${leaveHours.toFixed(1)}h leave)`:''}</div></div>
+      <div><div class="text-lg font-bold text-stone-900">${money(gross)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.banknote}</span>Gross pay</div></div>
+      <div><div class="text-lg font-bold text-rose-500">-${money(tax+ni)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.receipt}</span>Est. tax + NI</div></div>
+      <div><div class="text-lg font-bold text-emerald-600">${money(net)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.wallet}</span>Est. take-home</div></div>
+    </div>
+    <div class="mt-3 pt-3 border-t border-stone-100 text-[11px] text-stone-400 flex items-center justify-between">
+      <span>vs ${CONTRACT_HOURS_PER_PERIOD}h contracted (${CONTRACT_HOURS_PER_WEEK}h × 4wks)</span>
+      <span class="font-medium ${totalHours>=CONTRACT_HOURS_PER_PERIOD?'text-emerald-600':'text-amber-600'}">${totalHours>=CONTRACT_HOURS_PER_PERIOD?'+':''}${(totalHours-CONTRACT_HOURS_PER_PERIOD).toFixed(1)}h</span>
+    </div>
+    ${estimatedHours>0?`<div class="mt-1.5 text-[11px] text-sage-500">Includes ~${estimatedHours.toFixed(1)}h estimated (rota not published for ${missingDays} day${missingDays===1?'':'s'} yet)</div>`:''}
+  </div>`;
+}
+
+// archiveDays covers weeks that already rolled off the live rota but still fall
+// inside a pay period being shown — included in totals here, never rendered below.
+function payCards(weeks, archiveDays){
+  const allDays = weeks.flatMap(w => w.days).concat(archiveDays);
+  if (!allDays.length) return "";
+  const knownDates = new Set(allDays.map(d => d.date));
+  const minDate = fmt(allDays.reduce((a,b)=>a.date<b.date?a:b).date);
+  const maxDate = fmt(allDays.reduce((a,b)=>a.date>b.date?a:b).date);
+  const startBlock = blockIndexFor(minDate);
+  const endBlock = blockIndexFor(maxDate);
+  const currentBlock = blockIndexFor(fmt(todayISO));
+
+  let html = "";
+  for (let i = startBlock; i <= endBlock; i++){
+    const { start, end, payday } = payPeriod(i);
+    html += payBracketCard(start, end, payday, allDays, knownDates, i === currentBlock);
+  }
+  html += `<div class="col-span-full text-[10px] text-stone-300 text-center pt-1">Estimates only · £${HOURLY_RATE.toFixed(2)}/hr · 1257L tax code, no student loan · paid every 4 weeks</div>`;
+  return html;
+}
+
+function greeting(){
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function heroSection(data){
+  const dateStr = new Date().toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+  const synced = data.lastSync ? new Date(data.lastSync).toLocaleString("en-GB",{dateStyle:"medium",timeStyle:"short"}) : "never";
+  return `<div class="max-w-6xl mx-auto">
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="text-xs text-sage-100">${dateStr}</p>
+        <h1 class="text-2xl font-extrabold mt-0.5">${greeting()}, ${data.person}</h1>
+        <p class="text-xs text-sage-200 mt-1">Synced ${synced}${data.lastError?` · ⚠ ${data.lastError}`:''}</p>
+      </div>
+      <button id="refresh" class="flex items-center gap-1.5 text-xs font-medium text-white bg-white/15 hover:bg-white/25 rounded-full px-3.5 py-2 transition-colors shrink-0">
+        <span class="w-3.5 h-3.5">${ICONS.refresh}</span> Refresh
+      </button>
+    </div>
+  </div>`;
+}
+
+// The next upcoming shift (today or later) across live + archive days, styled as
+// a highlight card under the hero — like a "what's next" glance.
+function nextShiftCard(data){
+  const allDays = data.weeks.flatMap(w => w.days.map(d => ({...d, role: w.role})));
+  const next = allDays
+    .filter(d => d.date >= todayISO && (d.kind === "day" || d.kind === "night" || d.kind === "hol" || d.kind === "note") && d.hours > 0)
+    .sort((a,b) => a.date.localeCompare(b.date))[0];
+
+  const BORDER = { day: "border-amber-400", night: "border-indigo-400", hol: "border-emerald-400", note: "border-stone-400" };
+  const BADGE = { day: "bg-amber-50 text-amber-800", night: "bg-indigo-50 text-indigo-800", hol: "bg-emerald-50 text-emerald-800", note: "bg-stone-100 text-stone-600" };
+  const KIND_NAME = { day: "Day shift", night: "Night shift", hol: "Holiday", note: "Shift" };
+
+  if (!next){
+    return `<div class="rounded-2xl bg-white shadow-sm border border-stone-200 px-5 py-4 text-sm text-stone-400">No upcoming shifts scheduled yet.</div>`;
+  }
+  const isToday = next.date === todayISO;
+  const dateLabel = isToday ? "Next shift today" : fmt(next.date).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"short"});
+
+  return `<div class="rounded-2xl bg-white shadow-sm border-l-4 ${BORDER[next.kind]} border-y border-r border-stone-200 px-5 py-4">
+    <div class="text-xs text-stone-400 mb-1">${dateLabel}</div>
+    <div class="flex items-center justify-between">
+      <div class="text-lg font-bold text-stone-900">${next.label}</div>
+      <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full ${BADGE[next.kind]}"><span class="w-3 h-3">${KIND_ICON[next.kind]}</span>${KIND_NAME[next.kind]}</span>
+    </div>
+    <div class="text-xs text-stone-400 mt-1">${roleLabel(next.role)}</div>
+  </div>`;
+}
+
+// Small summary strip at the top of the page.
+function masterDetails(data){
+  const curWeek = data.weeks.find(w => {
+    const end = fmt(w.weekStart); end.setDate(end.getDate()+6);
+    return todayISO >= w.weekStart && todayISO <= end.toLocaleDateString("en-CA");
+  }) || data.weeks[0];
+  const role = curWeek ? roleLabel(curWeek.role) : "—";
+  const cycle = curWeek?.cycle || "—";
+
+  const currentBlock = blockIndexFor(fmt(todayISO));
+  const { payday } = payPeriod(currentBlock);
+  const daysUntilPayday = Math.round((payday - fmt(todayISO)) / 86400000);
+  const paydayStr = payday.toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+  const todayStr = new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
+
+  return `<div class="rounded-2xl shadow-sm px-5 py-4 text-white bg-sage-600">
+    <div class="text-xs font-medium text-white/80 mb-3">${todayStr}</div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div><div class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-white/70"><span class="w-3 h-3">${ICONS.badge}</span>Role</div><div class="text-sm font-semibold mt-0.5">${role}</div></div>
+      <div><div class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-white/70"><span class="w-3 h-3">${ICONS.repeat}</span>Cycle</div><div class="text-sm font-semibold mt-0.5">${cycle}</div></div>
+      <div><div class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-white/70"><span class="w-3 h-3">${ICONS.calendar}</span>Next payday</div><div class="text-sm font-semibold mt-0.5">${paydayStr} <span class="text-white/70 font-normal">(${daysUntilPayday}d)</span></div></div>
+      <div><div class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-white/70"><span class="w-3 h-3">${ICONS.clock}</span>Contract</div><div class="text-sm font-semibold mt-0.5">${CONTRACT_HOURS_PER_WEEK}h/wk · £${HOURLY_RATE.toFixed(2)}/hr</div></div>
+    </div>
+  </div>`;
+}
+
+async function load(){
+  const r = await fetch("/api/shifts"); const data = await r.json();
+  document.getElementById("hero").innerHTML = heroSection(data);
+  document.getElementById("nextShiftCard").innerHTML = nextShiftCard(data);
+  document.getElementById("masterDetails").innerHTML = masterDetails(data);
+  document.getElementById("payCards").innerHTML = payCards(data.weeks, data.archiveDays || []);
+  document.getElementById("weeks").innerHTML = data.weeks.map(weekCard).join("")
+    || '<p class="text-stone-400 text-sm">No shifts yet — try Refresh.</p>';
+}
+
+// The refresh button lives inside dynamically-rendered #hero, so it's re-created
+// on every load() — delegate the click from a static ancestor instead of binding once.
+document.getElementById("hero").addEventListener("click", async (e)=>{
+  if (e.target.id !== "refresh") return;
+  e.target.textContent = "Refreshing…";
+  try { await fetch("/api/sync",{method:"POST"}); } catch(_){}
+  await load();
+});
+
+load();
+</script>
+</body>
+</html>
