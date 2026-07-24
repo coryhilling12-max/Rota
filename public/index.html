@@ -102,7 +102,7 @@ function weekCard(w){
         <span class="text-[10px] font-semibold uppercase text-stone-400">${DAYS[idx]}</span>
         <span class="text-xs w-5 h-5 flex items-center justify-center rounded-full ${isToday?'bg-stone-900 text-white font-semibold':'text-stone-500'}">${dayNum}</span>
       </div>
-      <div class="flex-1 rounded-lg border px-1.5 py-1.5 text-[11px] leading-tight font-medium ${CHIP[d.kind]}">${d.label}</div></div>`;
+      <div class="flex-1 rounded-xl px-1.5 py-1 text-[11px] leading-snug font-semibold flex items-center justify-center text-center ${CHIP[d.kind]}">${d.label}</div></div>`;
   }).join("");
 
   return `<div class="rounded-2xl border bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-md ${isCurrent?'border-sage-300 ring-1 ring-sage-300':'border-stone-200'}">
