@@ -35,8 +35,6 @@
 
     <div id="masterDetails" class="mb-6"></div>
 
-    <div id="payCards" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-8"></div>
-
     <div id="weeks" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
 
     <div class="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-stone-500">
@@ -74,6 +72,7 @@ const ICONS = {
   banknote: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 10v.01M18 14v.01"/></svg>`,
   receipt:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2Z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>`,
   wallet:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h3v-4Z"/></svg>`,
+  lock:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
 };
 const KIND_ICON = { day: ICONS.sun, night: ICONS.moon, hol: ICONS.suitcase, note: ICONS.book };
 
@@ -124,7 +123,6 @@ function weekCard(w){
 // ---- pay ----
 const HOURLY_RATE = 13.50;
 const CONTRACT_HOURS_PER_WEEK = 40;
-const CONTRACT_HOURS_PER_PERIOD = CONTRACT_HOURS_PER_WEEK * 4; // every pay period is exactly 4 weeks
 
 // Last payday was 17 Jul 2026, cutoff a week before that (10 Jul). Pay runs every 28 days from there,
 // each new period starting the day after the previous cutoff.
@@ -139,87 +137,6 @@ function payPeriod(blockIndex){
   const start = addDays(end, -27);
   const payday = addDays(end, 7);
   return { start, end, payday };
-}
-
-// Rough UK PAYE estimate: standard 1257L tax code, no student loan, paid every 4 weeks (13 periods/year).
-function ukPeriodTaxAndNI(grossPeriod){
-  const PA = 12570/13, BASIC_TOP = 50270/13, HIGHER_TOP = 125140/13;
-  let tax = 0;
-  if (grossPeriod > PA) tax += (Math.min(grossPeriod, BASIC_TOP) - PA) * 0.20;
-  if (grossPeriod > BASIC_TOP) tax += (Math.min(grossPeriod, HIGHER_TOP) - BASIC_TOP) * 0.40;
-  if (grossPeriod > HIGHER_TOP) tax += (grossPeriod - HIGHER_TOP) * 0.45;
-  const NI_PT = 242*4, NI_UEL = 967*4; // weekly thresholds x4 weeks
-  let ni = 0;
-  if (grossPeriod > NI_PT) ni += (Math.min(grossPeriod, NI_UEL) - NI_PT) * 0.08;
-  if (grossPeriod > NI_UEL) ni += (grossPeriod - NI_UEL) * 0.02;
-  return { tax, ni, net: grossPeriod - tax - ni };
-}
-
-// Days with no rota entry at all yet (not even "off") get an estimate at the
-// contracted daily rate, so a pay period isn't understated just because next
-// month's rota hasn't been published.
-function payBracketCard(start, end, payday, allDays, knownDates, isCurrent){
-  const startISO = start.toLocaleDateString("en-CA"), endISO = end.toLocaleDateString("en-CA");
-  let workedHours = 0, leaveHours = 0;
-  for (const d of allDays){
-    if (d.date < startISO || d.date > endISO) continue;
-    if (d.kind === "day" || d.kind === "night" || d.kind === "note") workedHours += d.hours; // "note" covers paid college days
-    else if (d.kind === "hol") leaveHours += d.hours;
-  }
-
-  let missingDays = 0;
-  for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate()+1)){
-    if (!knownDates.has(cursor.toLocaleDateString("en-CA"))) missingDays++;
-  }
-  const estimatedHours = Math.round(missingDays * (CONTRACT_HOURS_PER_WEEK/7) * 100) / 100;
-
-  const totalHours = workedHours + leaveHours + estimatedHours;
-  const gross = totalHours * HOURLY_RATE;
-  const { tax, ni, net } = ukPeriodTaxAndNI(gross);
-  const mo = x => x.toLocaleDateString("en-GB",{day:"numeric",month:"short"});
-  const money = x => `£${x.toFixed(2)}`;
-
-  return `<div class="rounded-2xl border bg-white shadow-sm px-5 py-4 transition-shadow hover:shadow-md ${isCurrent?'border-sage-300 ring-1 ring-sage-300':'border-stone-200'}">
-    <div class="flex items-center justify-between mb-3">
-      <div class="flex items-center gap-2">
-        ${isCurrent?'<span class="text-[10px] font-semibold uppercase tracking-wide bg-sage-600 text-white px-2 py-0.5 rounded-full">Current</span>':'<span class="text-[10px] font-semibold uppercase tracking-wide bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">Upcoming</span>'}
-        <div class="text-sm font-semibold text-stone-900">${mo(start)} – ${mo(end)}</div>
-      </div>
-      <div class="text-xs text-stone-400">Paid ${mo(payday)}</div>
-    </div>
-    <div class="grid grid-cols-2 gap-3 text-center">
-      <div><div class="text-lg font-bold text-stone-900">${totalHours.toFixed(1)}h</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.clock}</span>Total hours${leaveHours>0?` (${leaveHours.toFixed(1)}h leave)`:''}</div></div>
-      <div><div class="text-lg font-bold text-stone-900">${money(gross)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.banknote}</span>Gross pay</div></div>
-      <div><div class="text-lg font-bold text-rose-500">-${money(tax+ni)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.receipt}</span>Est. tax + NI</div></div>
-      <div><div class="text-lg font-bold text-emerald-600">${money(net)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.wallet}</span>Est. take-home</div></div>
-    </div>
-    <div class="mt-3 pt-3 border-t border-stone-100 text-[11px] text-stone-400 flex items-center justify-between">
-      <span>vs ${CONTRACT_HOURS_PER_PERIOD}h contracted (${CONTRACT_HOURS_PER_WEEK}h × 4wks)</span>
-      <span class="font-medium ${totalHours>=CONTRACT_HOURS_PER_PERIOD?'text-emerald-600':'text-amber-600'}">${totalHours>=CONTRACT_HOURS_PER_PERIOD?'+':''}${(totalHours-CONTRACT_HOURS_PER_PERIOD).toFixed(1)}h</span>
-    </div>
-    ${estimatedHours>0?`<div class="mt-1.5 text-[11px] text-sage-500">Includes ~${estimatedHours.toFixed(1)}h estimated (rota not published for ${missingDays} day${missingDays===1?'':'s'} yet)</div>`:''}
-  </div>`;
-}
-
-// archiveDays covers weeks that already rolled off the live rota but still fall
-// inside a pay period being shown — included in totals here, never rendered below.
-function payCards(weeks, archiveDays){
-  const allDays = weeks.flatMap(w => w.days).concat(archiveDays);
-  if (!allDays.length) return "";
-  const knownDates = new Set(allDays.map(d => d.date));
-  const minDate = fmt(allDays.reduce((a,b)=>a.date<b.date?a:b).date);
-  const maxDate = fmt(allDays.reduce((a,b)=>a.date>b.date?a:b).date);
-  const startBlock = blockIndexFor(minDate);
-  const endBlock = blockIndexFor(maxDate);
-  const currentBlock = blockIndexFor(fmt(todayISO));
-
-  let html = "";
-  for (let i = startBlock; i <= endBlock; i++){
-    const { start, end, payday } = payPeriod(i);
-    html += payBracketCard(start, end, payday, allDays, knownDates, i === currentBlock);
-  }
-  html += `<div class="col-span-full text-[10px] text-stone-300 text-center pt-1">Estimates only · £${HOURLY_RATE.toFixed(2)}/hr · 1257L tax code, no student loan · paid every 4 weeks</div>`;
-  return html;
 }
 
 function greeting(){
@@ -297,15 +214,52 @@ function masterDetails(data){
       <div><div class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-white/70"><span class="w-3 h-3">${ICONS.calendar}</span>Next payday</div><div class="text-sm font-semibold mt-0.5">${paydayStr} <span class="text-white/70 font-normal">(${daysUntilPayday}d)</span></div></div>
       <div><div class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-white/70"><span class="w-3 h-3">${ICONS.clock}</span>Contract</div><div class="text-sm font-semibold mt-0.5">${CONTRACT_HOURS_PER_WEEK}h/wk · £${HOURLY_RATE.toFixed(2)}/hr</div></div>
     </div>
+    <button id="lockBtn" class="mt-3 text-[10px] text-white/60 hover:text-white/90 flex items-center gap-1"><span class="w-3 h-3">${ICONS.lock}</span>Lock</button>
   </div>`;
+}
+
+const DETAILS_PIN = "2326";
+function isDetailsUnlocked(){ return sessionStorage.getItem("detailsUnlocked") === "1"; }
+
+function lockedDetailsCard(){
+  return `<div class="rounded-2xl shadow-sm px-5 py-6 text-white bg-sage-600 text-center">
+    <div class="w-6 h-6 mx-auto mb-2 text-white/80">${ICONS.lock}</div>
+    <div class="text-sm font-medium mb-3">Details locked</div>
+    <form id="unlockForm" class="flex items-center justify-center gap-2">
+      <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN" autocomplete="off"
+        class="w-20 text-center rounded-lg px-2 py-1.5 text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-white/50" />
+      <button type="submit" class="text-xs font-medium bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5 transition-colors">Unlock</button>
+    </form>
+    <div id="pinError" class="text-[11px] text-rose-100 mt-2 hidden">Wrong PIN</div>
+  </div>`;
+}
+
+function renderMasterDetails(data){
+  document.getElementById("masterDetails").innerHTML = isDetailsUnlocked() ? masterDetails(data) : lockedDetailsCard();
+
+  const form = document.getElementById("unlockForm");
+  if (form) form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (document.getElementById("pinInput").value === DETAILS_PIN){
+      sessionStorage.setItem("detailsUnlocked", "1");
+      renderMasterDetails(data);
+    } else {
+      document.getElementById("pinError").classList.remove("hidden");
+    }
+  });
+
+  const lockBtn = document.getElementById("lockBtn");
+  if (lockBtn) lockBtn.addEventListener("click", () => {
+    sessionStorage.removeItem("detailsUnlocked");
+    renderMasterDetails(data);
+  });
 }
 
 async function load(){
   const r = await fetch("/api/shifts"); const data = await r.json();
   document.getElementById("hero").innerHTML = heroSection(data);
   document.getElementById("nextShiftCard").innerHTML = nextShiftCard(data);
-  document.getElementById("masterDetails").innerHTML = masterDetails(data);
-  document.getElementById("payCards").innerHTML = payCards(data.weeks, data.archiveDays || []);
+  renderMasterDetails(data);
   document.getElementById("weeks").innerHTML = data.weeks.map(weekCard).join("")
     || '<p class="text-stone-400 text-sm">No shifts yet — try Refresh.</p>';
 }
