@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>My Rota</title>
+
+  <!-- Installable as a home-screen app (PWA) — free, no App Store needed. -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Rota" />
+  <meta name="theme-color" content="#62804A" />
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -22,6 +31,8 @@
   <style>
     body { font-family: ui-sans-serif, system-ui, sans-serif; }
     .bg-app { background: linear-gradient(180deg, #F0F4EC 0%, #F6F8F3 12%, #fafaf9 32%); }
+    /* When launched full-screen from the home screen, keep content clear of the notch/status bar. */
+    body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
   </style>
 </head>
 <body class="bg-app min-h-screen">
@@ -34,6 +45,8 @@
     <div id="nextShiftCard" class="mb-6"></div>
 
     <div id="masterDetails" class="mb-6"></div>
+
+    <div id="payCards" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-8"></div>
 
     <div id="weeks" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
 
@@ -123,6 +136,7 @@ function weekCard(w){
 // ---- pay ----
 const HOURLY_RATE = 13.50;
 const CONTRACT_HOURS_PER_WEEK = 40;
+const CONTRACT_HOURS_PER_PERIOD = CONTRACT_HOURS_PER_WEEK * 4; // every pay period is exactly 4 weeks
 
 // Last payday was 17 Jul 2026, cutoff a week before that (10 Jul). Pay runs every 28 days from there,
 // each new period starting the day after the previous cutoff.
@@ -137,6 +151,102 @@ function payPeriod(blockIndex){
   const start = addDays(end, -27);
   const payday = addDays(end, 7);
   return { start, end, payday };
+}
+
+// Rough UK PAYE estimate: standard 1257L tax code, no student loan, paid every 4 weeks (13 periods/year).
+function ukPeriodTaxAndNI(grossPeriod){
+  const PA = 12570/13, BASIC_TOP = 50270/13, HIGHER_TOP = 125140/13;
+  let tax = 0;
+  if (grossPeriod > PA) tax += (Math.min(grossPeriod, BASIC_TOP) - PA) * 0.20;
+  if (grossPeriod > BASIC_TOP) tax += (Math.min(grossPeriod, HIGHER_TOP) - BASIC_TOP) * 0.40;
+  if (grossPeriod > HIGHER_TOP) tax += (grossPeriod - HIGHER_TOP) * 0.45;
+  const NI_PT = 242*4, NI_UEL = 967*4; // weekly thresholds x4 weeks
+  let ni = 0;
+  if (grossPeriod > NI_PT) ni += (Math.min(grossPeriod, NI_UEL) - NI_PT) * 0.08;
+  if (grossPeriod > NI_UEL) ni += (grossPeriod - NI_UEL) * 0.02;
+  return { tax, ni, net: grossPeriod - tax - ni };
+}
+
+// Days with no rota entry at all yet (not even "off") get an estimate at the
+// contracted daily rate, so a pay period isn't understated just because next
+// month's rota hasn't been published.
+function payBracketCard(start, end, payday, allDays, knownDates, isCurrent){
+  const startISO = start.toLocaleDateString("en-CA"), endISO = end.toLocaleDateString("en-CA");
+  let workedHours = 0, leaveHours = 0;
+  for (const d of allDays){
+    if (d.date < startISO || d.date > endISO) continue;
+    if (d.kind === "day" || d.kind === "night" || d.kind === "note") workedHours += d.hours; // "note" covers paid college days
+    else if (d.kind === "hol") leaveHours += d.hours;
+  }
+
+  let missingDays = 0;
+  for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate()+1)){
+    if (!knownDates.has(cursor.toLocaleDateString("en-CA"))) missingDays++;
+  }
+  const estimatedHours = Math.round(missingDays * (CONTRACT_HOURS_PER_WEEK/7) * 100) / 100;
+
+  const totalHours = workedHours + leaveHours + estimatedHours;
+  const gross = totalHours * HOURLY_RATE;
+  const { tax, ni, net } = ukPeriodTaxAndNI(gross);
+  const mo = x => x.toLocaleDateString("en-GB",{day:"numeric",month:"short"});
+  const money = x => `£${x.toFixed(2)}`;
+
+  return `<div class="rounded-2xl border bg-white shadow-sm px-5 py-4 transition-shadow hover:shadow-md ${isCurrent?'border-sage-300 ring-1 ring-sage-300':'border-stone-200'}">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        ${isCurrent?'<span class="text-[10px] font-semibold uppercase tracking-wide bg-sage-600 text-white px-2 py-0.5 rounded-full">Current</span>':'<span class="text-[10px] font-semibold uppercase tracking-wide bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full">Upcoming</span>'}
+        <div class="text-sm font-semibold text-stone-900">${mo(start)} – ${mo(end)}</div>
+      </div>
+      <div class="text-xs text-stone-400">Paid ${mo(payday)}</div>
+    </div>
+    <div class="grid grid-cols-2 gap-3 text-center">
+      <div><div class="text-lg font-bold text-stone-900">${totalHours.toFixed(1)}h</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.clock}</span>Total hours${leaveHours>0?` (${leaveHours.toFixed(1)}h leave)`:''}</div></div>
+      <div><div class="text-lg font-bold text-stone-900">${money(gross)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.banknote}</span>Gross pay</div></div>
+      <div><div class="text-lg font-bold text-rose-500">-${money(tax+ni)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.receipt}</span>Est. tax + NI</div></div>
+      <div><div class="text-lg font-bold text-emerald-600">${money(net)}</div><div class="flex items-center justify-center gap-1 text-[11px] text-stone-400"><span class="w-3 h-3">${ICONS.wallet}</span>Est. take-home</div></div>
+    </div>
+    <div class="mt-3 pt-3 border-t border-stone-100 text-[11px] text-stone-400 flex items-center justify-between">
+      <span>vs ${CONTRACT_HOURS_PER_PERIOD}h contracted (${CONTRACT_HOURS_PER_WEEK}h × 4wks)</span>
+      <span class="font-medium ${totalHours>=CONTRACT_HOURS_PER_PERIOD?'text-emerald-600':'text-amber-600'}">${totalHours>=CONTRACT_HOURS_PER_PERIOD?'+':''}${(totalHours-CONTRACT_HOURS_PER_PERIOD).toFixed(1)}h</span>
+    </div>
+    ${estimatedHours>0?`<div class="mt-1.5 text-[11px] text-sage-500">Includes ~${estimatedHours.toFixed(1)}h estimated (rota not published for ${missingDays} day${missingDays===1?'':'s'} yet)</div>`:''}
+  </div>`;
+}
+
+// archiveDays covers weeks that already rolled off the live rota but still fall
+// inside a pay period being shown — included in totals here, never rendered below.
+function payCards(weeks, archiveDays){
+  const allDays = weeks.flatMap(w => w.days).concat(archiveDays);
+  if (!allDays.length) return "";
+  const knownDates = new Set(allDays.map(d => d.date));
+  const minDate = fmt(allDays.reduce((a,b)=>a.date<b.date?a:b).date);
+  const maxDate = fmt(allDays.reduce((a,b)=>a.date>b.date?a:b).date);
+  const startBlock = blockIndexFor(minDate);
+  const endBlock = blockIndexFor(maxDate);
+  const currentBlock = blockIndexFor(fmt(todayISO));
+
+  // Only the current period (the one due next, including any archived days that
+  // still count toward it) shows by default — the rest collapse behind a toggle
+  // so this section doesn't dominate the screen on mobile.
+  let currentHtml = "", otherHtml = "", otherCount = 0;
+  for (let i = startBlock; i <= endBlock; i++){
+    const { start, end, payday } = payPeriod(i);
+    const card = payBracketCard(start, end, payday, allDays, knownDates, i === currentBlock);
+    if (i === currentBlock) currentHtml += card;
+    else { otherHtml += card; otherCount++; }
+  }
+
+  let html = currentHtml || otherHtml;
+  if (otherCount > 0){
+    html += `<details class="col-span-full group">
+      <summary class="cursor-pointer list-none flex items-center gap-1.5 text-xs font-medium text-sage-600 hover:text-sage-700 select-none py-1">
+        <span class="transition-transform group-open:rotate-90">▸</span> Show ${otherCount} more upcoming pay period${otherCount===1?'':'s'}
+      </summary>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mt-3">${otherHtml}</div>
+    </details>`;
+  }
+  html += `<div class="col-span-full text-[10px] text-stone-300 text-center pt-1">Estimates only · £${HOURLY_RATE.toFixed(2)}/hr · 1257L tax code, no student loan · paid every 4 weeks</div>`;
+  return html;
 }
 
 function greeting(){
@@ -235,7 +345,9 @@ function lockedDetailsCard(){
 }
 
 function renderMasterDetails(data){
-  document.getElementById("masterDetails").innerHTML = isDetailsUnlocked() ? masterDetails(data) : lockedDetailsCard();
+  const unlocked = isDetailsUnlocked();
+  document.getElementById("masterDetails").innerHTML = unlocked ? masterDetails(data) : lockedDetailsCard();
+  document.getElementById("payCards").innerHTML = unlocked ? payCards(data.weeks, data.archiveDays || []) : "";
 
   const form = document.getElementById("unlockForm");
   if (form) form.addEventListener("submit", (e) => {
