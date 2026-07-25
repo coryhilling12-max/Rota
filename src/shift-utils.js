@@ -8,6 +8,35 @@ function isHolidayColor(color) {
   return typeof color === "string" && color.toUpperCase() === HOLIDAY_FILL;
 }
 
+// Sourced from the "Shift Template Colours Guide" tab in the master rota, which
+// colour-codes shift cells by role/position (separate from the holiday/college/NA
+// text markers, which are handled elsewhere and never looked up here). A few
+// colours in the guide are shared by more than one label — e.g. every "040" role
+// uses the same teal, so those are combined into one broader label since the
+// colour alone can't tell them apart.
+const COLOR_CATEGORY = {
+  "BE3D79": "Floor Lead",
+  "FFD5F9": "Theatre (Admits)",
+  "FF9FD3": "Theatre",
+  "FF6CB6": "Theatre / Consults",
+  "A2C4C9": "Imaging / Ophthalmology",
+  "DBB8FF": "Hospital",
+  "F9FFBB": "Triage / Clinician",
+  "009193": "040 Team",
+  "33CCCC": "Admin",
+  "F2E1FF": "Admin",
+  "9FC5E8": "Theatre (Overflow)",
+  "CFE2F3": "Imagier",
+  "8E7CC3": "Medic",
+  "A3FFE3": "Consult",
+  "FF6AA3": "Surgeon",
+};
+
+function categoryLabel(color) {
+  if (!color) return "No colour allocation";
+  return COLOR_CATEGORY[color.toUpperCase()] || "No colour allocation";
+}
+
 // Duration implied by the shift text alone, ignoring HOL/NA/COLLEGE special cases.
 function rawShiftHours(s) {
   if (/^12\.3$/.test(s)) return 12.3; // shorthand for the standard 12.3h night shift
@@ -72,10 +101,14 @@ export function prettyShift(raw, color) {
 
 // Turn a stored day record into the shape the frontend renders.
 export function decorate(raw, color) {
+  const kind = classify(raw, color);
   return {
     raw: raw || "",
-    kind: classify(raw, color),
+    kind,
     hours: parseHours(raw, color),
     label: prettyShift(raw, color),
+    // Only worked shifts get a colour-category — holiday/college/off aren't part
+    // of the role-colour legend, they're their own separate text-based markers.
+    category: kind === "day" || kind === "night" ? categoryLabel(color) : null,
   };
 }
