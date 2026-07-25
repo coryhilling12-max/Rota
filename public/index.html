@@ -36,6 +36,18 @@
   </style>
 </head>
 <body class="bg-app min-h-screen">
+  <div id="authGate" class="fixed inset-0 z-50 flex items-center justify-center bg-app px-4">
+    <div class="text-center">
+      <img src="/logo.webp" alt="Vets for Pets" class="h-7 w-auto mx-auto mb-6" />
+      <button id="googleSignIn" class="inline-flex items-center gap-2.5 bg-white border border-stone-200 shadow-sm rounded-full pl-4 pr-5 py-3 text-sm font-medium text-stone-700 hover:shadow-md transition-shadow">
+        <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.63h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.81Z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.07 7.94-2.92l-3.88-3c-1.08.72-2.45 1.15-4.06 1.15-3.13 0-5.78-2.11-6.73-4.96H1.27v3.11A12 12 0 0 0 12 24Z"/><path fill="#FBBC05" d="M5.27 14.27a7.2 7.2 0 0 1 0-4.54v-3.1H1.27a12 12 0 0 0 0 10.75l4-3.11Z"/><path fill="#EA4335" d="M12 4.77c1.77 0 3.35.6 4.6 1.8l3.44-3.44C17.94 1.19 15.24 0 12 0A12 12 0 0 0 1.27 6.63l4 3.1C6.22 6.88 8.87 4.77 12 4.77Z"/></svg>
+        Sign in with Google
+      </button>
+      <p id="authError" class="text-xs text-rose-500 mt-3 hidden"></p>
+    </div>
+  </div>
+
+  <div id="appRoot" class="hidden">
   <div class="max-w-6xl mx-auto px-4 pt-4 pb-1">
     <img src="/logo.webp" alt="Vets for Pets" class="h-6 w-auto" />
   </div>
@@ -59,8 +71,29 @@
       <span class="text-stone-400">·&nbsp; "12.3" = 12.3-hour night shift</span>
     </div>
   </div>
+  </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDYKDB5jCgTCMhcpd8-o-QJkgqKHzMyXwk",
+  authDomain: "rota-746fc.firebaseapp.com",
+  projectId: "rota-746fc",
+  storageBucket: "rota-746fc.firebasestorage.app",
+  messagingSenderId: "512019719492",
+  appId: "1:512019719492:web:58ba6a644a15b9737ae311",
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const googleProvider = new GoogleAuthProvider();
+
+async function authHeader(){
+  if (!auth.currentUser) return {};
+  return { Authorization: `Bearer ${await auth.currentUser.getIdToken()}` };
+}
+
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const ROLE_NAMES = { HVCA:"Night VCA", NVCA:"Night VCA", SVN:"Student nurse", RVN:"Nurse", VCA:"VCA" };
 function roleLabel(r){ return r ? (ROLE_NAMES[r.toUpperCase()] || r) : ""; }
@@ -266,9 +299,14 @@ function heroSection(data){
         <h1 class="text-2xl font-extrabold mt-0.5">${greeting()}, ${data.person}</h1>
         <p class="text-xs text-sage-200 mt-1">Synced ${synced}${data.lastError?` · ⚠ ${data.lastError}`:''}</p>
       </div>
-      <button id="refresh" class="flex items-center gap-1.5 text-xs font-medium text-white bg-white/15 hover:bg-white/25 rounded-full px-3.5 py-2 transition-colors shrink-0">
-        <span class="w-3.5 h-3.5">${ICONS.refresh}</span> Refresh
-      </button>
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="refresh" class="flex items-center gap-1.5 text-xs font-medium text-white bg-white/15 hover:bg-white/25 rounded-full px-3.5 py-2 transition-colors">
+          <span class="w-3.5 h-3.5">${ICONS.refresh}</span> Refresh
+        </button>
+        <button id="signOutBtn" class="text-xs font-medium text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full px-3 py-2 transition-colors">
+          Sign out
+        </button>
+      </div>
     </div>
   </div>`;
 }
@@ -368,7 +406,7 @@ function renderMasterDetails(data){
 }
 
 async function load(){
-  const r = await fetch("/api/shifts"); const data = await r.json();
+  const r = await fetch("/api/shifts", { headers: await authHeader() }); const data = await r.json();
   document.getElementById("hero").innerHTML = heroSection(data);
   document.getElementById("nextShiftCard").innerHTML = nextShiftCard(data);
   renderMasterDetails(data);
@@ -376,16 +414,31 @@ async function load(){
     || '<p class="text-stone-400 text-sm">No shifts yet — try Refresh.</p>';
 }
 
-// The refresh button lives inside dynamically-rendered #hero, so it's re-created
-// on every load() — delegate the click from a static ancestor instead of binding once.
+// The refresh/sign-out buttons live inside dynamically-rendered #hero, so they're
+// re-created on every load() — delegate clicks from a static ancestor instead.
 document.getElementById("hero").addEventListener("click", async (e)=>{
+  if (e.target.id === "signOutBtn"){ await signOut(auth); return; }
   if (e.target.id !== "refresh") return;
   e.target.textContent = "Refreshing…";
-  try { await fetch("/api/sync",{method:"POST"}); } catch(_){}
+  try { await fetch("/api/sync",{method:"POST", headers: await authHeader()}); } catch(_){}
   await load();
 });
 
-load();
+document.getElementById("googleSignIn").addEventListener("click", async () => {
+  document.getElementById("authError").classList.add("hidden");
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (e) {
+    document.getElementById("authError").textContent = "Sign-in failed: " + e.message;
+    document.getElementById("authError").classList.remove("hidden");
+  }
+});
+
+onAuthStateChanged(auth, (user) => {
+  document.getElementById("authGate").classList.toggle("hidden", !!user);
+  document.getElementById("appRoot").classList.toggle("hidden", !user);
+  if (user) load();
+});
 </script>
 </body>
 </html>

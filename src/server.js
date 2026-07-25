@@ -3,6 +3,8 @@ import express from "express";
 import cron from "node-cron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 
 import { getWeeks, getMeta } from "./db.js";
 import { decorate } from "./shift-utils.js";
@@ -11,6 +13,28 @@ import { syncNow } from "./sync.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+initializeApp({
+  credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
+});
+
+// Only this Google account's sign-in token is accepted — this is a personal app,
+// so anyone else who signs in with a different Google account is rejected here
+// even though Firebase Auth itself would let them sign in.
+async function requireAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ error: "Missing auth token" });
+  try {
+    const decoded = await getAuth().verifyIdToken(token);
+    if (decoded.email !== process.env.ALLOWED_EMAIL) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    next();
+  } catch (e) {
+    res.status(401).json({ error: "Invalid auth token" });
+  }
+}
 
 app.use(express.static(path.join(__dirname, "..", "public")));
 
@@ -33,7 +57,7 @@ function decorateWeek(w) {
   };
 }
 
-app.get("/api/shifts", (req, res) => {
+app.get("/api/shifts", requireAuth, (req, res) => {
   const weeks = getWeeks("live").map(decorateWeek);
   // Archived weeks: not shown as rota cards (they've rolled off the live tab),
   // but their days are exposed so pay-period totals can still include them.
@@ -48,7 +72,7 @@ app.get("/api/shifts", (req, res) => {
 });
 
 // Manual re-sync trigger.
-app.post("/api/sync", async (req, res) => {
+app.post("/api/sync", requireAuth, async (req, res) => {
   try {
     const r = await syncNow();
     res.json({ ok: true, ...r });
